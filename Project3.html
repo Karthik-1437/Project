@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Family Financial Management</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --accent:#3b82f6;
+      --accent-2:#06b6d4;
+      --success:#10b981;
+      --danger:#ef4444;
+      --glass: rgba(255,255,255,0.6);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:linear-gradient(180deg,var(--bg),#e9eef8);
+      color:#0f172a;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:28px;
+      box-sizing:border-box;
+    }
+
+    .container{
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:20px;
+      align-items:start;
+    }
+
+    /* Left column - controls */
+    .card{
+      background:var(--card);
+      border-radius:14px;
+      box-shadow: 0 6px 18px rgba(11,22,40,0.08);
+      padding:18px;
+    }
+
+    h1{font-size:20px;margin:0 0 6px;}
+    p.lead{margin:0 0 16px;color:var(--muted);font-size:13px}
+
+    label{display:block;font-weight:600;font-size:13px;margin-bottom:6px}
+    .row{display:flex;gap:10px}
+    input[type="text"], input[type="number"], select{
+      width:100%;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #e6edf5;
+      background:linear-gradient(180deg,#fff,#fbfdff);
+      box-sizing:border-box;
+      font-size:14px;
+    }
+
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:10px;
+      border:0;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .btn-primary{background:var(--accent);color:#fff;box-shadow:0 6px 14px rgba(59,130,246,0.18)}
+    .btn-ghost{background:transparent;border:1px solid #e6edf5;color:var(--muted)}
+
+    /* summary */
+    .summary{display:flex;gap:10px;margin-top:16px}
+    .summary .tile{
+      flex:1;
+      padding:12px;border-radius:10px;background:linear-gradient(180deg,#fff,#fbfdff);box-shadow:0 4px 10px rgba(12,24,56,0.04)
+    }
+    .tile h3{margin:0;font-size:12px;color:var(--muted)}
+    .tile .value{font-size:18px;font-weight:700;margin-top:6px}
+
+    /* right column - charts and transactions */
+    .charts{
+      display:grid;grid-template-rows:auto auto;gap:18px;
+    }
+
+    .chart-row{display:flex;gap:18px}
+    canvas{background:transparent;display:block;width:100%!important;height:250px!important}
+
+    /* transactions */
+    .transactions{
+      margin-top:12px;
+    }
+    .tx{
+      display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;border:1px solid #f1f5f9;margin-bottom:8px;background:linear-gradient(180deg,#fff,#fbfdff);
+    }
+    .tx .meta{display:flex;gap:10px;align-items:center}
+    .badge{
+      padding:6px 8px;border-radius:8px;font-weight:700;font-size:12px;color:#fff;
+    }
+    .badge.income{background:linear-gradient(90deg,var(--success),#059669)}
+    .badge.expense{background:linear-gradient(90deg,var(--danger),#ef4444)}
+
+    .tx small{color:var(--muted);display:block}
+
+    /* responsive */
+    @media (max-width:980px){
+      .container{grid-template-columns:1fr; padding:16px;}
+      .chart-row{flex-direction:column}
+      canvas{height:220px!important}
+    }
+
+    footer{margin-top:18px;color:var(--muted);font-size:13px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Left: Add transaction + summary -->
+    <div class="card" aria-label="Controls">
+      <h1>Family Finance Manager</h1>
+      <p class="lead">Track incomes and expenses, view savings and charts. Data stored in your browser (localStorage).</p>
+
+      <div id="form">
+        <label for="type">Type</label>
+        <select id="type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label for="category">Category</label>
+        <input id="category" type="text" placeholder="e.g., Salary, Groceries, Rent" />
+
+        <div style="height:10px"></div>
+
+        <div class="form-grid">
+          <div>
+            <label for="amount">Amount (₹)</label>
+            <input id="amount" type="number" placeholder="0.00" />
+          </div>
+          <div>
+            <label for="date">Date</label>
+            <input id="date" type="date" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+          <button id="addBtn" class="btn btn-primary">Add Transaction</button>
+          <button id="clearBtn" class="btn btn-ghost">Clear All</button>
+        </div>
+      </div>
+
+      <div class="summary" style="margin-top:18px">
+        <div class="tile">
+          <h3>Total Income</h3>
+          <div id="totalIncome" class="value">₹0</div>
+          <small class="muted">All incomes combined</small>
+        </div>
+        <div class="tile">
+          <h3>Total Expense</h3>
+          <div id="totalExpense" class="value">₹0</div>
+          <small class="muted">All expenses combined</small>
+        </div>
+        <div class="tile">
+          <h3>Savings</h3>
+          <div id="savings" class="value">₹0</div>
+          <small class="muted">Income − Expense</small>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <h3 style="margin-bottom:8px">Quick sample data</h3>
+        <div style="display:flex;gap:8px">
+          <button id="sampleBtn" class="btn btn-ghost">Load sample</button>
+          <button id="exportBtn" class="btn btn-ghost">Export JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Charts + transactions list -->
+    <div class="charts">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="font-size:15px;margin:0">Overview</h2>
+          <small style="color:var(--muted)">Updated live</small>
+        </div>
+
+        <div class="chart-row" style="gap:18px">
+          <div style="flex:0 0 320px">
+            <canvas id="doughnutChart" aria-label="Expense breakdown"></canvas>
+          </div>
+          <div style="flex:1">
+            <canvas id="lineChart" aria-label="Balance over time"></canvas>
+          </div>
+        </div>
+
+        <div class="transactions" id="transactionsList" style="margin-top:14px">
+          <h3 style="margin:10px 0">Transactions</h3>
+          <div id="txContainer"></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin:0 0 10px">Notes & Tips</h3>
+        <ul style="margin:0;padding-left:18px;color:var(--muted);line-height:1.6">
+          <li>Use categories to see where money goes (Groceries, Rent, Utilities, Salary).</li>
+          <li>Click "Export JSON" to copy transactions to the clipboard.</li>
+          <li>All data is saved locally to your browser. Use Clear All to reset.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer>Built for families • Local browser storage • Simple, private</footer>
+
+  <script>
+    // ---------- Data model ----------
+    const STORAGE_KEY = 'family_fin_data_v1';
+
+    // initially empty or from localStorage
+    let transactions = loadTransactions();
+
+    // Initialize UI elements
+    const el = {
+      type: document.getElementById('type'),
+      category: document.getElementById('category'),
+      amount: document.getElementById('amount'),
+      date: document.getElementById('date'),
+      addBtn: document.getElementById('addBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      sampleBtn: document.getElementById('sampleBtn'),
+      exportBtn: document.getElementById('exportBtn'),
+      txContainer: document.getElementById('txContainer'),
+      totalIncome: document.getElementById('totalIncome'),
+      totalExpense: document.getElementById('totalExpense'),
+      savings: document.getElementById('savings')
+    };
+
+    // default date: today
+    el.date.value = new Date().toISOString().slice(0,10);
+
+    // ---------- Charts ----------
+    let doughnutChart, lineChart;
+    function initCharts(){
+      const dtx = document.getElementById('doughnutChart').getContext('2d');
+      const ltx = document.getElementById('lineChart').getContext('2d');
+
+      doughnutChart = new Chart(dtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['No data'],
+          datasets: [{
+            data: [1],
+            backgroundColor: ['#e5e7eb'],
+            borderWidth:0
+          }]
+        },
+        options: {
+          plugins: {legend:{position:'bottom'}},
+          maintainAspectRatio:false,
+        }
+      });
+
+      lineChart = new Chart(ltx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Balance over time (₹)',
+            data: [],
+            fill: true,
+            tension: 0.25,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          plugins:{legend:{display:false}},
+          scales:{
+            x:{display:true},
+            y:{display:true}
+          },
+          maintainAspectRatio:false
+        }
+      });
+    }
+
+    // ---------- Helpers ----------
+    function saveTransactions(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+    }
+    function loadTransactions(){
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return [];
+        return JSON.parse(raw).map(tx => ({...tx, amount:Number(tx.amount)}));
+      } catch(e){
+        console.error('Failed to load transactions', e);
+        return [];
+      }
+    }
+
+    function currency(v){
+      // format Indian rupee
+      return '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:2});
+    }
+
+    function updateSummary(){
+      let income = 0, expense = 0;
+      for (const tx of transactions){
+        if (tx.type === 'income') income += Number(tx.amount);
+        else expense += Number(tx.amount);
+      }
+      const savings = income - expense;
+      el.totalIncome.textContent = currency(income);
+      el.totalExpense.textContent = currency(expense);
+      el.savings.textContent = currency(savings);
+    }
+
+    function renderTransactions(){
+      el.txContainer.innerHTML = '';
+      // sort by date desc
+      const sorted = [...transactions].sort((a,b)=> new Date(b.date) - new Date(a.date));
+      if(sorted.length===0){
+        el.txContainer.innerHTML = '<div style="color:var(--muted);padding:12px;border-radius:8px;border:1px dashed #e6edf5">No transactions yet.</div>';
+        return;
+      }
+      for (const tx of sorted){
+        const div = document.createElement('div');
+        div.className = 'tx';
+        div.innerHTML = `
+          <div class="meta">
+            <div style="min-width:8px"></div>
+            <div>
+              <strong>${escapeHtml(tx.category || '(no category)')}</strong>
+              <small>${new Date(tx.date).toLocaleDateString()}</small>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+              <div class="badge ${tx.type === 'income' ? 'income' : 'expense'}">${tx.type === 'income' ? 'IN' : 'OUT'}</div>
+              <div><strong>${tx.type === 'income' ? '' : '-'}${currency(tx.amount)}</strong></div>
+              <button style="margin-left:8px;border:0;background:transparent;cursor:pointer;color:var(--muted)" title="Delete" data-id="${tx.id}">✕</button>
+            </div>
+          </div>
+        `;
+        el.txContainer.appendChild(div);
+      }
+
+      // attach delete buttons
+      el.txContainer.querySelectorAll('button[title="Delete"]').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          const id = btn.dataset.id;
+          transactions = transactions.filter(t=>t.id !== id);
+          saveTransactions();
+          refreshAll();
+        });
+      });
+    }
+
+    // simple XSS-safe text escape for categories
+    function escapeHtml(s){
+      if(!s) return '';
+      return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // Chart update
+    function updateCharts(){
+      // doughnut: breakdown of expenses by category (only expenses)
+      const expenseTx = transactions.filter(t => t.type === 'expense');
+      const byCat = {};
+      for (const tx of expenseTx) {
+        const cat = tx.category && tx.category.trim() ? tx.category.trim() : 'Other';
+        byCat[cat] = (byCat[cat] || 0) + Number(tx.amount);
+      }
+
+      const doughnutLabels = Object.keys(byCat).length ? Object.keys(byCat) : ['No data'];
+      const doughnutData = Object.keys(byCat).length ? Object.values(byCat) : [1];
+      const bgColors = generatePalette(doughnutLabels.length);
+
+      doughnutChart.data.labels = doughnutLabels;
+      doughnutChart.data.datasets[0].data = doughnutData;
+      doughnutChart.data.datasets[0].backgroundColor = bgColors;
+      doughnutChart.update();
+
+      // line chart: balance over time -> compute cumulative balance by date
+      const allTx = [...transactions].sort((a,b)=> new Date(a.date) - new Date(b.date));
+      const groups = {};
+      for (const tx of allTx){
+        const key = new Date(tx.date).toISOString().slice(0,10);
+        if(!groups[key]) groups[key] = 0;
+        groups[key] += (tx.type === 'income' ? Number(tx.amount) : -Number(tx.amount));
+      }
+      // accumulate
+      const dates = Object.keys(groups).sort();
+      const balances = [];
+      let running = 0;
+      for (const d of dates){
+        running += groups[d];
+        balances.push(Math.round((running + Number.EPSILON) * 100) / 100);
+      }
+      if(dates.length === 0){
+        lineChart.data.labels = ['No data'];
+        lineChart.data.datasets[0].data = [0];
+      } else {
+        lineChart.data.labels = dates;
+        lineChart.data.datasets[0].data = balances;
+      }
+      lineChart.update();
+    }
+
+    // small palette generator
+    function generatePalette(n){
+      const base = [
+        '#60a5fa','#34d399','#f472b6','#f59e0b','#f97316',
+        '#a78bfa','#06b6d4','#ef4444','#10b981','#8b5cf6'
+      ];
+      const out = [];
+      for (let i=0;i<n;i++) out.push(base[i % base.length]);
+      return out;
+    }
+
+    // ---------- UI actions ----------
+    el.addBtn.addEventListener('click', ()=> {
+      const type = el.type.value;
+      const category = el.category.value.trim();
+      const amount = Number(el.amount.value);
+      const date = el.date.value || new Date().toISOString().slice(0,10);
+
+      if (!amount || isNaN(amount) || amount <= 0) {
+        alert('Please enter a valid amount > 0');
+        return;
+      }
+      const tx = {
+        id: String(Date.now()) + Math.random().toString(36).slice(2,7),
+        type,
+        category,
+        amount: Number(amount),
+        date
+      };
+      transactions.push(tx);
+      saveTransactions();
+      // reset small inputs
+      el.amount.value = '';
+      el.category.value = '';
+      el.date.value = new Date().toISOString().slice(0,10);
+      refreshAll();
+    });
+
+    el.clearBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear ALL transactions? This cannot be undone.')) return;
+      transactions = [];
+      saveTransactions();
+      refreshAll();
+    });
+
+    el.sampleBtn.addEventListener('click', ()=>{
+      // sample transactions
+      transactions = [
+        {id:'s1', type:'income', category:'Salary', amount:50000, date: offsetDate(-20) },
+        {id:'s2', type:'expense', category:'Rent', amount:15000, date: offsetDate(-18) },
+        {id:'s3', type:'expense', category:'Groceries', amount:6000, date: offsetDate(-17) },
+        {id:'s4', type:'expense', category:'Utilities', amount:2000, date: offsetDate(-15) },
+        {id:'s5', type:'income', category:'Freelance', amount:8000, date: offsetDate(-10) },
+        {id:'s6', type:'expense', category:'School', amount:4000, date: offsetDate(-8) },
+        {id:'s7', type:'expense', category:'Entertainment', amount:1500, date: offsetDate(-5) },
+        {id:'s8', type:'expense', category:'Groceries', amount:5000, date: offsetDate(-2) }
+      ];
+      saveTransactions();
+      refreshAll();
+    });
+
+    el.exportBtn.addEventListener('click', ()=>{
+      const data = JSON.stringify(transactions, null, 2);
+      // copy to clipboard when possible
+      if(navigator.clipboard){
+        navigator.clipboard.writeText(data).then(()=> {
+          alert('Transactions JSON copied to clipboard.');
+        }).catch(()=> {
+          prompt('Copy the JSON below:', data);
+        });
+      } else {
+        prompt('Copy the JSON below:', data);
+      }
+    });
+
+    function offsetDate(days){
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0,10);
+    }
+
+    // refresh UI
+    function refreshAll(){
+      updateSummary();
+      renderTransactions();
+      updateCharts();
+    }
+
+    // ---------- init ----------
+    initCharts();
+    refreshAll();
+
+    // utility: ask user before leaving if unsaved? not needed - data saved automatically
+
+  </script>
+</body>
+</html>
